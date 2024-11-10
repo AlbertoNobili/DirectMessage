@@ -22,13 +22,13 @@ def handle_client(conn, stop_event, message_queue):
             message_queue.put("Connection was closed.")
             message_queue.put("Close this window to exit.")
             stop_event.set()
-        print("Receiver ConnectionResetError")
+        #print("Receiver ConnectionResetError")
     except OSError: # Connection was closed by other threads
         if not stop_event.is_set():
             message_queue.put("Connection was closed.")
             message_queue.put("Close this window to exit.")
             stop_event.set()
-        print("Receiver OSError")
+        #print("Receiver OSError")
     finally:
         conn.close()
         print("Receiver ended")
@@ -54,13 +54,13 @@ def send_message(event, conn, stop_event, message_queue, input_text):
             message_queue.put("Connection was closed.")
             message_queue.put("Close this window to exit.")
             stop_event.set()
-        print("Receiver ConnectionResetError")
+        #print("Sender ConnectionResetError")
     except OSError:  # Connection was closed by other threads
         if not stop_event.is_set():
             message_queue.put("Connection was closed.")
             message_queue.put("Close this window to exit.")
             stop_event.set()
-        print("Sender OSError")
+        #print("Sender OSError")
 
 def update_messages(text_widget, message_queue):
     while not message_queue.empty():
