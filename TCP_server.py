@@ -9,14 +9,18 @@ from tkinter.scrolledtext import ScrolledText
 def handle_client(conn, stop_event, message_queue):
     try:
         while not stop_event.is_set():
-            data = conn.recv(1024)
-            if not data:  # Connection was closed by client
-                message_queue.put("Client has disconnected.")
-                message_queue.put("Close this window to exit.")
-                stop_event.set()
-                break
-            message = f"Received message: {data.decode()}"
-            message_queue.put(message)
+            conn.settimeout(1.0)  # Set a timeout for the recv call
+            try:
+                data = conn.recv(1024)
+                if not data:  # Connection was closed by client
+                    message_queue.put("Client has disconnected.")
+                    message_queue.put("Close this window to exit.")
+                    stop_event.set()
+                    break
+                message = f"Received message: {data.decode()}"
+                message_queue.put(message)
+            except socket.timeout:
+                continue
     except ConnectionResetError: # Connection was interrupted
         if not stop_event.is_set():
             message_queue.put("Connection was closed.")
@@ -34,44 +38,61 @@ def handle_client(conn, stop_event, message_queue):
         print("Receiver ended")
 
 def send_message(event, conn, stop_event, message_queue, input_text):
-    try:
-        response = input_text.get("1.0", tk.END).strip()
+    if event.keysym == 'Return' and not event.state & 0x0001:  # Check if Shift is not pressed
+        try:
+            response = input_text.get("1.0", tk.END).strip()
 
-        if response:
-            print(response)
-            if response.lower() == 'exit': # Close the connection
-                stop_event.set()
-                message_queue.put("You closed the connection.")
+            if response:
+                print(response)
+                if response.lower() == 'exit': # Close the connection
+                    stop_event.set()
+                    message_queue.put("You closed the connection.")
+                    message_queue.put("Close this window to exit.")
+                    conn.close()
+                    return
+                conn.sendall(response.encode())
+                message_queue.put(f"Sent message: {response}")
+                input_text.delete("1.0", tk.END)
+
+        except (BrokenPipeError, ConnectionResetError): # Connection was interrupted
+            if not stop_event.is_set():
+                message_queue.put("Connection was closed.")
                 message_queue.put("Close this window to exit.")
-                conn.close()
-                return
-            conn.sendall(response.encode())
-            message_queue.put(f"Sent message: {response}")
-            input_text.delete("1.0", tk.END)
-
-    except (BrokenPipeError, ConnectionResetError): # Connection was interrupted
-        if not stop_event.is_set():
-            message_queue.put("Connection was closed.")
-            message_queue.put("Close this window to exit.")
-            stop_event.set()
-        #print("Sender ConnectionResetError")
-    except OSError:  # Connection was closed by other threads
-        if not stop_event.is_set():
-            message_queue.put("Connection was closed.")
-            message_queue.put("Close this window to exit.")
-            stop_event.set()
-        #print("Sender OSError")
+                stop_event.set()
+            #print("Sender ConnectionResetError")
+        except OSError:  # Connection was closed by other threads
+            if not stop_event.is_set():
+                message_queue.put("Connection was closed.")
+                message_queue.put("Close this window to exit.")
+                stop_event.set()
+            #print("Sender OSError")
+    else:
+        input_text.insert(tk.INSERT, '')  # Insert a newline if Shift+Enter is pressed
 
 def update_messages(text_widget, message_queue):
     while not message_queue.empty():
         message = message_queue.get_nowait()
-        text_widget.insert(tk.END, message + '\n')
+        text_widget.config(state=tk.NORMAL)
+        if message.startswith("Received message:"):
+            text_widget.insert(tk.END, "Received message:", ('prompt', 'received'))
+            text_widget.insert(tk.END, message[len("Received message:"):] + '\n', 'received')
+        elif message.startswith("Sent message:"):
+            text_widget.insert(tk.END, "Sent message:", ('prompt', 'sent'))
+            text_widget.insert(tk.END, message[len("Sent message:"):] + '\n', 'sent')
         text_widget.see(tk.END)
+        text_widget.config(state=tk.DISABLED)
     text_widget.after(100, update_messages, text_widget, message_queue)
+
+
+def on_closing(stop_event, root):
+    stop_event.set()
+    root.destroy()
+
 
 def start_server():
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind(('0.0.0.0', 12346))
+    server_socket.bind(('localhost', 12346))
+    #server_socket.bind(('0.0.0.0', 12346))
     server_socket.listen(1)
     print("Server is listening on port 12346...")
 
@@ -90,8 +111,11 @@ def start_server():
     main_frame = ttk.Frame(root)
     main_frame.pack(expand=True, fill=tk.BOTH)
 
-    text_widget = ScrolledText(main_frame, wrap=tk.WORD)
+    text_widget = ScrolledText(main_frame, wrap=tk.WORD, state=tk.DISABLED)
     text_widget.grid(row=0, column=0, sticky="nsew")
+    text_widget.tag_config('prompt', font=('TkDefaultFont', 9, 'underline'))
+    text_widget.tag_config('received', foreground='red')
+    text_widget.tag_config('sent', foreground='blue')
 
     input_text = tk.Text(main_frame, height=10)
     input_text.grid(row=1, column=0, sticky="nsew")
@@ -103,7 +127,11 @@ def start_server():
 
     update_messages(text_widget, message_queue)
 
+    root.protocol("WM_DELETE_WINDOW", lambda: on_closing(stop_event, root))
+
     root.mainloop()
+
+
     print("Window closed.")
     receive_thread.join()
     print("Server is shutting down.")

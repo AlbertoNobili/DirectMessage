@@ -69,7 +69,8 @@ def update_messages(text_widget, message_queue):
     text_widget.after(100, update_messages, text_widget, message_queue)
 
 def start_client():
-    server_public_IP = '95.249.79.185'
+    server_public_IP = 'localhost'
+    #server_public_IP = '95.249.79.185'
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket.connect((server_public_IP, 12346))
 
