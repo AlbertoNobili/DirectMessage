@@ -23,15 +23,17 @@ def handle_client(conn, stop_event, message_queue):
                 continue
     except ConnectionResetError: # Connection was interrupted
         if not stop_event.is_set():
+            message_queue.put("Connection was closed.")
+            message_queue.put("Close this window to exit.")
             stop_event.set()
         #print("Receiver ConnectionResetError")
     except OSError: # Connection was closed by other threads
         if not stop_event.is_set():
+            message_queue.put("Connection was closed.")
+            message_queue.put("Close this window to exit.")
             stop_event.set()
         #print("Receiver OSError")
     finally:
-        message_queue.put("Connection was closed.")
-        message_queue.put("Close this window to exit.")
         conn.close()
         print("Receiver ended")
 
@@ -77,6 +79,8 @@ def update_messages(text_widget, message_queue):
         elif message.startswith("Sent message:"):
             text_widget.insert(tk.END, "Sent message:", ('prompt', 'sent'))
             text_widget.insert(tk.END, message[len("Sent message:"):] + '\n', 'sent')
+        else:
+            text_widget.insert(tk.END, message + '\n')
         text_widget.see(tk.END)
         text_widget.config(state=tk.DISABLED)
     text_widget.after(100, update_messages, text_widget, message_queue)
