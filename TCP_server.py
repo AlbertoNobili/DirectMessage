@@ -23,17 +23,15 @@ def handle_client(conn, stop_event, message_queue):
                 continue
     except ConnectionResetError: # Connection was interrupted
         if not stop_event.is_set():
-            message_queue.put("Connection was closed.")
-            message_queue.put("Close this window to exit.")
             stop_event.set()
         #print("Receiver ConnectionResetError")
     except OSError: # Connection was closed by other threads
         if not stop_event.is_set():
-            message_queue.put("Connection was closed.")
-            message_queue.put("Close this window to exit.")
             stop_event.set()
         #print("Receiver OSError")
     finally:
+        message_queue.put("Connection was closed.")
+        message_queue.put("Close this window to exit.")
         conn.close()
         print("Receiver ended")
 
