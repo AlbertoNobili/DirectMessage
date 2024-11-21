@@ -5,8 +5,9 @@ import tkinter as tk
 from tkinter import ttk
 from tkinter.scrolledtext import ScrolledText
 
-def receive_messages(conn, stop_event, message_queue):
+def receive_message(conn, stop_event, message_queue):
     b = 1
+    temp = 10
     try:
         while not stop_event.is_set():
             conn.settimeout(1.0)  # Set a timeout for the recv call
